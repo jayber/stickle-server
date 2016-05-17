@@ -1,11 +1,11 @@
-package controllers
+package actors
 
-import play.api.mvc.Controller
 import reactivemongo.api.collections.bson.BSONCollection
 
 trait StickleDb {
 
   import reactivemongo.api._
+
   import scala.concurrent.ExecutionContext.Implicits.global
 
   val connection: MongoConnection = (new MongoDriver).connection(List("localhost"))

@@ -6,12 +6,10 @@ import actors.StickleDb
 import play.api.Logger
 import play.api.libs.json.Json
 import play.api.mvc._
-import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.bson.{BSONDocument, BSONObjectID}
 
-import scala.concurrent.Future
-
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 
 @Singleton
@@ -20,7 +18,7 @@ class UserController @Inject() extends Controller with StickleDb {
   def register(phoneNum: String) = Action.async { request =>
     val displayName = (request.body.asJson.get \ "displayName").as[String]
     Logger.debug(s"register $phoneNum, $displayName")
-    val userId = BSONObjectID.generate.stringify
+    val userId = BSONObjectID.generate().stringify
     val query = BSONDocument("phoneNumber" -> phoneNum)
     fuserCollection.flatMap(_.find(query).one[BSONDocument]).flatMap {
       case Some(_) => Future(BadRequest("Already registered"))

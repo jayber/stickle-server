@@ -54,7 +54,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
     system.actorSelection(s"user/${phoneNumber.get}").resolveOne(5 seconds)
       .recover { case e =>
       Logger.debug("creating new UserActor")
-      system.actorOf(IncomingMessageActor.props(out, phoneNumber.get, displayName.get), phoneNumber.get)
+      system.actorOf(IncomingMessageActor.props(phoneNumber.get, displayName.get), phoneNumber.get)
     }
       .map { user =>
       user ! out

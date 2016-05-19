@@ -1,20 +1,23 @@
 package actors
 
+import java.util.Date
+
 import actors.IncomingMessageActor._
 import actors.OutgoingMessageActor._
 import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
 import play.api.libs.json.{JsObject, Json}
-import reactivemongo.bson.{BSONDateTime, BSONDocument}
 
 object OutgoingMessageActor {
   def props() = Props(new OutgoingMessageActor)
 
-  trait StickleMessage
-  case class StickleOn(sourcePhoneNumber: String, sourceDisplayName: String) extends StickleMessage
-  case class StickleStatusChanged(sourcePhoneNumber: String, state: String) extends StickleMessage
+  trait StickleEvent
+  case class StickleOnEvent(sourcePhoneNumber: String, sourceDisplayName: String) extends StickleEvent
+  case class StickleStatusChangedEvent(sourcePhoneNumber: String, state: String) extends StickleEvent
 
   case class ContactStatus(phoneNumber: String, status: String)
+
+  case class StickleState(originator: String, originatorDisplayName: String, recipient: String, createdDate: Date, state: String)
 }
 
 class OutgoingMessageActor extends Actor with StickleDb {
@@ -25,15 +28,15 @@ class OutgoingMessageActor extends Actor with StickleDb {
 
     case socket: ActorRef => mySocket = Some(socket)
 
-    case replay: BSONDocument => sendStateToSocket(replay)
+    case replay: StickleState => sendStateToSocket(replay)
 
     case ContactStatus(phoneNumber, status) =>
       sendContactStatusToSocket(phoneNumber, status)
 
-    case StickleOn(sourcePhoneNumber, sourceDisplayName) =>
+    case StickleOnEvent(sourcePhoneNumber, sourceDisplayName) =>
       Logger.debug(s"stickle $open received by target from: $sourcePhoneNumber - $sourceDisplayName")
       mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "displayName" -> sourceDisplayName, "status" -> open))}
-    case StickleStatusChanged(sourcePhoneNumber, status) =>
+    case StickleStatusChangedEvent(sourcePhoneNumber, status) =>
       Logger.debug(s"stickle $status received by target from: $sourcePhoneNumber")
       mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "status" -> status))}
   }
@@ -43,18 +46,17 @@ class OutgoingMessageActor extends Actor with StickleDb {
     mySocket foreach {_ ! Json.obj("event" -> "contactStatus", "data" -> Json.obj("phoneNum" -> phoneNumber, "status" -> status))}
   }
 
-  def sendStateToSocket(bSONDocument: BSONDocument) = {
+  def sendStateToSocket(state: StickleState): Unit = {
     val message: JsObject = Json.obj(
-      "event" -> "state", "data" -> Json.obj(
-        "from" -> bSONDocument.getAs[String]("from"),
-        "to" -> bSONDocument.getAs[String]("to"),
-        "status" -> bSONDocument.getAs[String]("status"),
-        "createdDate" -> bSONDocument.getAs[BSONDateTime]("createdDate").get.value
-      )
-    )
-    Logger.debug(s"state message: $message")
-    mySocket foreach {
-      _ ! message
-    }
+      "event" -> "state",
+      "data" -> Json.obj(
+        "originator" -> state.originator,
+        "originatorDisplayName" -> state.originatorDisplayName,
+        "recipient" -> state.recipient,
+        "state" -> state.state,
+        "createdDate" -> state.createdDate
+      ))
+    Logger.debug(s"state message: ${Json.stringify(message)}")
+    mySocket foreach {_ ! message}
   }
 }

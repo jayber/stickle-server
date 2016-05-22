@@ -1,4 +1,4 @@
-package actors
+package services
 
 import reactivemongo.api.collections.bson.BSONCollection
 

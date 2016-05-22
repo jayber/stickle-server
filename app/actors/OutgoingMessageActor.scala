@@ -2,11 +2,12 @@ package actors
 
 import java.util.Date
 
-import actors.IncomingMessageActor._
 import actors.OutgoingMessageActor._
+import actors.UserActor._
 import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
 import play.api.libs.json.{JsObject, Json}
+import services.StickleDb
 
 object OutgoingMessageActor {
   def props() = Props(new OutgoingMessageActor)
@@ -21,6 +22,8 @@ object OutgoingMessageActor {
 }
 
 class OutgoingMessageActor extends Actor with StickleDb {
+
+  Logger.trace(s"OutgoingMessageActor - path: ${self.path.toString}")
 
   var mySocket: Option[ActorRef] = None
 

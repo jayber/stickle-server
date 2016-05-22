@@ -2,11 +2,11 @@ package controllers
 
 import javax.inject._
 
-import actors.StickleDb
 import play.api.Logger
 import play.api.libs.json.Json
 import play.api.mvc._
 import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import services.StickleDb
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

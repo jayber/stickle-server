@@ -2,7 +2,7 @@ package controllers
 
 import javax.inject.Inject
 
-import actors.{StickleDb, StickleWebSocketActor}
+import actors.StickleWebSocketActor
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import play.api.Logger

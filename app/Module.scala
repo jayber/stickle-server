@@ -25,6 +25,7 @@ class Module extends AbstractModule {
 
 
     bind(classOf[UserController]).asEagerSingleton
+
   }
 
 }

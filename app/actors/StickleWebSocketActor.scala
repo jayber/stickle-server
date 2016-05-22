@@ -1,9 +1,12 @@
 package actors
 
 import akka.actor._
+import akka.pattern.ask
+import akka.util.Timeout
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import reactivemongo.bson.{BSONDocument, _}
+import services.StickleDb
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -31,7 +34,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
       }
   }
 
-  def authenticate(msg: JsValue, userOptFut: Future[Option[ActorRef]]) = {
+  def authenticate(msg: JsValue, userOptFut: Future[Option[ActorRef]]): Future[Option[ActorRef]] = {
     userOptFut.flatMap {
       case Some(_) => ackAuthentication()
         userOptFut
@@ -51,15 +54,19 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
   }
 
   def findOrCreateIncomingMessageActor(phoneNumber: Option[String], displayName: Option[String]): Future[Some[ActorRef]] = {
-    system.actorSelection(s"user/${phoneNumber.get}").resolveOne(5 seconds)
+
+    implicit val timeout = Timeout(5 seconds)
+
+    system.actorSelection(s"user/${phoneNumber.get}").resolveOne
       .recover { case e =>
       Logger.debug("creating new UserActor")
-      system.actorOf(IncomingMessageActor.props(phoneNumber.get, displayName.get), phoneNumber.get)
+      system.actorOf(UserActor.props(phoneNumber.get, displayName.get), phoneNumber.get)
     }
-      .map { user =>
-      user ! out
-      ackAuthentication()
-      Some(user)
+      .flatMap { user =>
+      (user ? out).map { case incoming: ActorRef =>
+        ackAuthentication()
+        Some(incoming)
+      }
     }
   }
 

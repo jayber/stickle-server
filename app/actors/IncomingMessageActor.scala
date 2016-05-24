@@ -26,7 +26,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
         case `open` =>
           postStickleEventToPeer(targetPhoneNumber, open, Some(displayName), StickleOnEvent(phoneNumber, displayName))
         case `closed` =>
-          postStickleEventToPeer(targetPhoneNumber, closed, None, StickleStatusChangedEvent(phoneNumber, closed))
+          postStickleEventToPeer(targetPhoneNumber, closed, None, StickleClosedEvent(phoneNumber))
       }
 
     case ("stickle-response", msg: JsValue) =>
@@ -55,7 +55,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
   }
 
   def postStickleEventToPeer(targetPhoneNumber: String, status: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
-    Logger.debug(s"stickle open received by source to: $targetPhoneNumber")
+    Logger.debug(s"stickle $status received by source to: $targetPhoneNumber")
     persistStickleEvent(phoneNumber, sourceDisplayName, targetPhoneNumber, status)
     sendMessage(targetPhoneNumber, message)
   }

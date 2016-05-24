@@ -18,16 +18,16 @@ object StickleWebSocketActor {
 
 class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends Actor with StickleDb {
 
-  var myUser: Future[Option[ActorRef]] = Future.successful(None)
+  var userMessageHandler: Future[Option[ActorRef]] = Future.successful(None)
 
   def receive = {
     case msg: JsValue =>
       Logger.debug("received: " + Json.stringify(msg))
       (msg \ "event").as[String] match {
         case "authenticate" =>
-          myUser = authenticate(msg, myUser)
+          userMessageHandler = authenticate(msg, userMessageHandler)
         case event =>
-          myUser foreach {
+          userMessageHandler foreach {
             case Some(user) => user ! (event, msg)
             case None => // self ! PoisonPill ? seems a bit extreme
           }

@@ -14,6 +14,7 @@ object OutgoingMessageActor {
 
   trait StickleEvent
   case class StickleOnEvent(sourcePhoneNumber: String, sourceDisplayName: String) extends StickleEvent
+  case class StickleClosedEvent(sourcePhoneNumber: String) extends StickleEvent
   case class StickleStatusChangedEvent(sourcePhoneNumber: String, state: String) extends StickleEvent
 
   case class ContactStatus(phoneNumber: String, status: String)
@@ -39,9 +40,12 @@ class OutgoingMessageActor extends Actor with StickleDb {
     case StickleOnEvent(sourcePhoneNumber, sourceDisplayName) =>
       Logger.debug(s"stickle $open received by target from: $sourcePhoneNumber - $sourceDisplayName")
       mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "displayName" -> sourceDisplayName, "status" -> open))}
+    case StickleClosedEvent(sourcePhoneNumber) =>
+      Logger.debug(s"stickle closed received by target from: $sourcePhoneNumber")
+      mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "status" -> closed))}
     case StickleStatusChangedEvent(sourcePhoneNumber, status) =>
       Logger.debug(s"stickle $status received by target from: $sourcePhoneNumber")
-      mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "status" -> status))}
+      mySocket foreach {_ ! Json.obj("event" -> "stickle-responded", "data" -> Json.obj("from" -> sourcePhoneNumber, "status" -> status))}
   }
 
   def sendContactStatusToSocket(phoneNumber: String, status: String): Unit = {

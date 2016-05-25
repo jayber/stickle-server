@@ -26,7 +26,9 @@ object UserActor {
 
   implicit val stickleStateDocumentReader: BSONDocumentReader[StickleState] = new BSONDocumentReader[StickleState] {
     override def read(bson: BSONDocument): StickleState = {
+      Logger.trace(s"reading: ${bson.getAs[BSONObjectID]("_id").map(_.stringify)}")
       StickleState(
+        bson.getAs[BSONObjectID]("_id").map(_.stringify),
         bson.getAs[String]("originator").get,
         bson.getAs[String]("originatorDisplayName").getOrElse(""),
         bson.getAs[String]("recipient").get,
@@ -37,7 +39,9 @@ object UserActor {
   }
 
   implicit val stickleStateDocumentWriter: BSONDocumentWriter[StickleState] = new BSONDocumentWriter[StickleState] {
-    override def write(state: StickleState): BSONDocument = BSONDocument("originator" -> state.originator,
+    override def write(state: StickleState): BSONDocument = BSONDocument(
+      "_id" -> state.id,
+      "originator" -> state.originator,
       "originatorDisplayName" -> state.originatorDisplayName,
       "recipient" -> state.recipient,
       "createdDate" -> BSONDateTime(state.createdDate.getTime),
@@ -75,9 +79,9 @@ class UserActor(phoneNumber: String, displayName: String) extends Actor with Sti
           Logger.trace(s"doing an empty for $phoneNumber, target=$targetPhoneNumber, inbound=$inbound")
           inbound match {
             case true =>
-              outgoingMessageActor ! StickleState(targetPhoneNumber, "", phoneNumber, new Date(), closed)
+              outgoingMessageActor ! StickleState(None, targetPhoneNumber, "", phoneNumber, new Date(), closed)
             case _ =>
-              outgoingMessageActor ! StickleState(phoneNumber, "", targetPhoneNumber, new Date(), closed)
+              outgoingMessageActor ! StickleState(None, phoneNumber, "", targetPhoneNumber, new Date(), closed)
           }
         }
       }
@@ -99,19 +103,19 @@ class UserActor(phoneNumber: String, displayName: String) extends Actor with Sti
       enumerator.run(Iteratee.foreach { row =>
         empty = false
         row match {
-          case result@StickleState(originator, _, recipient, _, `closed`) =>
+          case result@StickleState(_, originator, _, recipient, _, `closed`) =>
             dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
-          case result@StickleState(originator, _, recipient, _, `rejected`) =>
+          case result@StickleState(_, originator, _, recipient, _, `rejected`) =>
             dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
-          case result@StickleState(originator, originatorDisplayName, recipient, _, `open`) =>
+          case result@StickleState(_, originator, originatorDisplayName, recipient, _, `open`) =>
             eventMap.getOrElse((originator, recipient), null) match {
               case null => outgoingMessageActor ! result
                 eventMap((originator, recipient)) = None
-              case Some(previous) => outgoingMessageActor ! StickleState(originator, originatorDisplayName, recipient, previous.createdDate, previous.state)
+              case Some(previous) => outgoingMessageActor ! StickleState(None, originator, originatorDisplayName, recipient, previous.createdDate, previous.state)
                 eventMap((originator, recipient)) = None
               case _ => deleteFromDB(result)
             }
-          case result@StickleState(originator, originatorDisplayName, recipient, _, _) =>
+          case result@StickleState(_, originator, originatorDisplayName, recipient, _, _) =>
             eventMap.getOrElse((originator, recipient), null) match {
               case null => eventMap((originator, recipient)) = Some(result)
               case _ => deleteFromDB(result)
@@ -135,6 +139,6 @@ class UserActor(phoneNumber: String, displayName: String) extends Actor with Sti
 
   def deleteFromDB(result: StickleState): Unit = {
     Logger.trace(s"removing $result")
-    fstickleCollection foreach (coll => coll.remove(result))
+    fstickleCollection foreach (coll => coll.remove(BSONDocument("_id" -> BSONObjectID(result.id.get))))
   }
 }

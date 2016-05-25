@@ -19,7 +19,7 @@ object OutgoingMessageActor {
 
   case class ContactStatus(phoneNumber: String, status: String)
 
-  case class StickleState(originator: String, originatorDisplayName: String, recipient: String, createdDate: Date, state: String)
+  case class StickleState(id: Option[String], originator: String, originatorDisplayName: String, recipient: String, createdDate: Date, state: String)
 }
 
 class OutgoingMessageActor extends Actor with StickleDb {

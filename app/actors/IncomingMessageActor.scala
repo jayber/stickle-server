@@ -34,13 +34,16 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
 
     case ("checkContactStatus", msg: JsValue) =>
       Logger.trace("checkContactStatus")
-      val phoneNumber = (msg \ "data" \ "phoneNum").as[String]
-      fuserCollection.flatMap(_.find(BSONDocument("phoneNumber" -> phoneNumber)).one[BSONDocument]).map {
+      val targetPhoneNumber = (msg \ "data" \ "phoneNum").as[String]
+      fuserCollection.flatMap(_.find(BSONDocument("phoneNumber" -> targetPhoneNumber)).one[BSONDocument]).map {
         case Some(_) =>
-          outgoingMessageActor ! ContactStatus(phoneNumber, "registered")
+          outgoingMessageActor ! ContactStatus(targetPhoneNumber, "registered")
         case None =>
-          outgoingMessageActor ! ContactStatus(phoneNumber, "unregistered")
+          outgoingMessageActor ! ContactStatus(targetPhoneNumber, "unregistered")
       }
+
+    case ("check-state", msg: JsValue) =>
+      context.parent ! CheckState((msg \ "data" \ "phoneNum").as[String], (msg \ "data" \ "inbound").as[Boolean])
 
     case (_, msg: JsValue) =>
       Logger.debug("Unhandled socket event: " + Json.stringify(msg))

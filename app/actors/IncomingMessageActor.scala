@@ -27,6 +27,8 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
           postStickleEventToPeer(targetPhoneNumber, open, Some(displayName), StickleOnEvent(phoneNumber, displayName))
         case `closed` =>
           postStickleEventToPeer(targetPhoneNumber, closed, None, StickleClosedEvent(phoneNumber))
+        case `completed` =>
+          postStickleEventToPeer(targetPhoneNumber, completed, None, StickleClosedEvent(phoneNumber))
       }
 
     case ("stickle-response", msg: JsValue) =>
@@ -48,7 +50,6 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
     case (_, msg: JsValue) =>
       Logger.debug("Unhandled socket event: " + Json.stringify(msg))
   }
-
 
   def postResponseEventToPeer(originatorPhoneNumber: String, recipientPhoneNumber: String, status: String): Unit = {
     Logger.debug(s"stickle $status received by source, origin: $originatorPhoneNumber, recipient: $recipientPhoneNumber")

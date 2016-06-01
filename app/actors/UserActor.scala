@@ -23,6 +23,7 @@ object UserActor {
   val unaccepted: String = "un-accepted"
   val rejected: String = "rejected"
   val open: String = "open"
+  val completed: String = "completed"
 
   implicit val stickleStateDocumentReader: BSONDocumentReader[StickleState] = new BSONDocumentReader[StickleState] {
     override def read(bson: BSONDocument): StickleState = {
@@ -103,6 +104,8 @@ class UserActor(phoneNumber: String, displayName: String) extends Actor with Sti
       enumerator.run(Iteratee.foreach { row =>
         empty = false
         row match {
+          case result@StickleState(_, originator, _, recipient, _, `completed`) =>
+            dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
           case result@StickleState(_, originator, _, recipient, _, `closed`) =>
             dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
           case result@StickleState(_, originator, _, recipient, _, `rejected`) =>

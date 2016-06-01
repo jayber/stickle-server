@@ -24,14 +24,30 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
     case msg: JsValue =>
       Logger.debug("received: " + Json.stringify(msg))
       (msg \ "event").as[String] match {
+        case "feedback" =>
+          saveFeedback(msg)
         case "authenticate" =>
           userMessageHandler = authenticate(msg, userMessageHandler)
         case event =>
           userMessageHandler foreach {
-            case Some(user) => user ! (event, msg)
+            case Some(messageHandler) => messageHandler !(event, msg)
             case None => // self ! PoisonPill ? seems a bit extreme
           }
       }
+  }
+
+  def saveFeedback(msg: JsValue): Unit = {
+    ffeedbackCollection foreach {
+      _.insert(
+        BSONDocument("title" -> (msg \ "data" \ "title").as[String],
+          "content" -> (msg \ "data" \ "content").as[String],
+          "displayName" -> (msg \ "data" \ "displayName").as[String],
+          "phoneNumber" -> (msg \ "data" \ "phoneNumber").as[String],
+          "userId" -> (msg \ "data" \ "userId").as[String],
+          "createdDate" -> BSONDateTime(System.currentTimeMillis)
+        )
+      )
+    }
   }
 
   def authenticate(msg: JsValue, userOptFut: Future[Option[ActorRef]]): Future[Option[ActorRef]] = {
@@ -46,6 +62,8 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
             Logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}")
             findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber"), result.getAs[String]("displayName"))
           case _ =>
+            Logger.debug(s"no user for ${(msg \ "data" \ "userId").as[String]}")
+            ackAuthenticationFailure()
             self ! PoisonPill
             Future.successful(None) //this would actually be the same as returning 'myUser' but is more clear
         }
@@ -72,5 +90,9 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
 
   def ackAuthentication() = {
     out ! Json.obj("event" -> "authenticated")
+  }
+
+  def ackAuthenticationFailure() = {
+    out ! Json.obj("event" -> "authentication-failed")
   }
 }

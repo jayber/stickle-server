@@ -22,10 +22,8 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
 
   def receive = {
     case msg: JsValue =>
-      Logger.debug("received: " + Json.stringify(msg))
+      Logger.trace("received: " + Json.stringify(msg))
       (msg \ "event").as[String] match {
-        case "feedback" =>
-          saveFeedback(msg)
         case "authenticate" =>
           userMessageHandler = authenticate(msg, userMessageHandler)
         case event =>
@@ -34,20 +32,6 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
             case None => // self ! PoisonPill ? seems a bit extreme
           }
       }
-  }
-
-  def saveFeedback(msg: JsValue): Unit = {
-    ffeedbackCollection foreach {
-      _.insert(
-        BSONDocument("title" -> (msg \ "data" \ "title").as[String],
-          "content" -> (msg \ "data" \ "content").as[String],
-          "displayName" -> (msg \ "data" \ "displayName").as[String],
-          "phoneNumber" -> (msg \ "data" \ "phoneNumber").as[String],
-          "userId" -> (msg \ "data" \ "userId").as[String],
-          "createdDate" -> BSONDateTime(System.currentTimeMillis)
-        )
-      )
-    }
   }
 
   def authenticate(msg: JsValue, userOptFut: Future[Option[ActorRef]]): Future[Option[ActorRef]] = {

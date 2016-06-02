@@ -3,6 +3,7 @@
 # ~~~~
 
 POST        /api/user/:phoneNum                            controllers.UserController.register(phoneNum)
+POST        /api/feedback        controllers.FeedbackController.feedback
 
 GET         /api/ws                                        controllers.SocketController.get
 

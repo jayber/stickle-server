@@ -12,6 +12,7 @@ import services.StickleDb
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 object UserActor {
   def props(phoneNumber: String, displayName: String) = Props(new UserActor(phoneNumber, displayName))
@@ -93,7 +94,7 @@ class UserActor(phoneNumber: String, displayName: String) extends Actor with Sti
     querySendAndDelete(query, broadcastClosedAndRejected = false)
   }
 
-  def querySendAndDelete(query: BSONDocument, broadcastClosedAndRejected: Boolean) = {
+  def querySendAndDelete(query: BSONDocument, broadcastClosedAndRejected: Boolean): Future[Boolean] = {
     val eventMap = mutable.Map[(String, String), Option[StickleState]]()
     fstickleCollection.map {
       _.find(query)

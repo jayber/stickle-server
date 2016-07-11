@@ -44,7 +44,12 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
           .one[BSONDocument].flatMap {
           case Some(result) =>
             Logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}")
-            findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber"), result.getAs[String]("displayName"))
+            fuserCollection.foreach {
+              _.update[BSONDocument, BSONDocument](
+                BSONDocument("_id" -> (msg \ "data" \ "userId").as[String]),
+                BSONDocument("$set" -> BSONDocument("pushRegistrationId" -> (msg \ "data" \ "pushRegistrationId").as[String])))
+            }
+            findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber").get, result.getAs[String]("displayName").get)
           case _ =>
             Logger.debug(s"no user for ${(msg \ "data" \ "userId").as[String]}")
             ackAuthenticationFailure()
@@ -55,14 +60,14 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends
     }
   }
 
-  def findOrCreateIncomingMessageActor(phoneNumber: Option[String], displayName: Option[String]): Future[Some[ActorRef]] = {
+  def findOrCreateIncomingMessageActor(phoneNumber: String, displayName: String): Future[Some[ActorRef]] = {
 
     implicit val timeout = Timeout(5 seconds)
 
-    system.actorSelection(s"user/${phoneNumber.get}").resolveOne
+    system.actorSelection(s"user/$phoneNumber").resolveOne
       .recover { case e =>
       Logger.debug("creating new UserActor")
-      system.actorOf(UserActor.props(phoneNumber.get, displayName.get), phoneNumber.get)
+      system.actorOf(UserActor.props(phoneNumber, displayName), phoneNumber)
     }
       .flatMap { user =>
       (user ? out).map { case incoming: ActorRef =>

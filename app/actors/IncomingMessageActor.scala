@@ -27,13 +27,13 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
         case `open` =>
           postStickleEventToPeer(targetPhoneNumber, open, Some(displayName), StickleOnEvent(phoneNumber, displayName))
         case `closed` =>
-          postStickleEventToPeer(targetPhoneNumber, closed, None, StickleClosedEvent(phoneNumber))
+          postStickleEventToPeer(targetPhoneNumber, closed, Some(displayName), StickleClosedEvent(phoneNumber))
         case `completed` =>
-          postStickleEventToPeer(targetPhoneNumber, completed, None, StickleClosedEvent(phoneNumber))
+          postStickleEventToPeer(targetPhoneNumber, completed, Some(displayName), StickleClosedEvent(phoneNumber))
       }
 
     case ("stickle-response", msg: JsValue) =>
-      postResponseEventToPeer((msg \ "data" \ "origin").as[String], phoneNumber, (msg \ "data" \ "status").as[String])
+      postResponseEventToPeer((msg \ "data" \ "origin").as[String], phoneNumber, Some(displayName), (msg \ "data" \ "status").as[String])
 
     case ("checkContactStatus", msg: JsValue) =>
       Logger.trace("checkContactStatus")
@@ -52,25 +52,25 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
       Logger.debug("Unhandled socket event: " + Json.stringify(msg))
   }
 
-  def postResponseEventToPeer(originatorPhoneNumber: String, recipientPhoneNumber: String, status: String): Unit = {
+  def postResponseEventToPeer(originatorPhoneNumber: String, recipientPhoneNumber: String, sourceDisplayName: Option[String], status: String): Unit = {
     Logger.debug(s"stickle $status received by source, origin: $originatorPhoneNumber, recipient: $recipientPhoneNumber")
     persistStickleEvent(originatorPhoneNumber, None, recipientPhoneNumber, status)
     val message = StickleStatusChangedEvent(phoneNumber, status)
-    sendMessage(originatorPhoneNumber, message)
+    sendMessage(originatorPhoneNumber, sourceDisplayName: Option[String], message)
   }
 
   def postStickleEventToPeer(targetPhoneNumber: String, status: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
     Logger.debug(s"stickle $status received by source to: $targetPhoneNumber")
     persistStickleEvent(phoneNumber, sourceDisplayName, targetPhoneNumber, status)
-    sendMessage(targetPhoneNumber, message)
+    sendMessage(targetPhoneNumber, sourceDisplayName, message)
   }
 
-  def sendMessage(targetPhoneNumber: String, message: StickleEvent): Unit = {
+  def sendMessage(targetPhoneNumber: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
     context.actorSelection(s"../../$targetPhoneNumber/out") ! message
     fuserCollection foreach {
       _.find(BSONDocument("phoneNumber" -> targetPhoneNumber)).one[BSONDocument] foreach {
         _ foreach { doc =>
-          PushNotifications.sendNotification(doc.getAs[String]("pushRegistrationId").get, message)
+          PushNotifications.sendNotification(doc.getAs[String]("pushRegistrationId").get, sourceDisplayName, message)
         }
       }
     }

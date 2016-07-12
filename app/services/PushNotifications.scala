@@ -10,25 +10,38 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object PushNotifications {
 
-  def sendNotification(id: String, message: StickleEvent)(implicit ws: WSClient): Unit = {
+  def sendNotification(id: String, nameOpt: Option[String], message: StickleEvent)(implicit ws: WSClient): Unit = {
 
     Logger.debug(s"sendNotification, id: $id")
 
     val request = ws.url("https://gcm-http.googleapis.com/gcm/send")
       .withHeaders("Content-Type" -> "application/json", "Authorization" -> "key=AIzaSyDEftdRdvgPLH-6OZE-Ds082rEUG-rCBOg")
 
-    val response = request.post(Json.obj("to" -> id, "notification" -> Json.obj(
-      "title" -> "Stickle",
-      "icon" -> "myicon",
-      "body" -> (message match {
-        case StickleOnEvent(_, _) => "Stickled"
-        case StickleClosedEvent(_) => "Closed"
-        case StickleStatusChangedEvent(_, state) => state
-      })
-    )))
+    val response = request.post(Json.obj("to" -> id, "notification" -> (message match {
+      case StickleOnEvent(_, name) => Json.obj(
+        "title" -> s"$name wants to talk",
+        "icon" -> "myicon",
+        "sound" -> "default",
+        "tag" -> name,
+        "body" -> s"$name stickled you. Open to accept or decline."
+      )
+      case StickleClosedEvent(_) => Json.obj(
+        "title" -> s"${nameOpt.getOrElse("")} closed your stickle",
+        "icon" -> "myicon",
+        "tag" -> nameOpt.getOrElse[String](""),
+        "body" -> s"Open to view"
+      )
+      case StickleStatusChangedEvent(_, state) => Json.obj(
+        "title" -> s"Stickle $state from ${nameOpt.getOrElse("")}",
+        "icon" -> "myicon",
+        "sound" -> "default",
+        "tag" -> nameOpt.getOrElse[String](""),
+        "body" -> s"Your stickle was $state. Open to view."
+      )
+    })))
 
     response foreach { response =>
-      Logger.debug(s"push-notification: ${response.statusText}, body: ${response.body}")
+      Logger.debug(s"push-notification response: ${response.statusText}, body: ${response.body}")
     }
   }
 

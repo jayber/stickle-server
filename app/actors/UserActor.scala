@@ -7,6 +7,7 @@ import actors.UserActor._
 import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
 import play.api.libs.iteratee._
+import play.api.libs.ws.WSClient
 import reactivemongo.bson._
 import services.StickleDb
 
@@ -15,7 +16,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 object UserActor {
-  def props(phoneNumber: String, displayName: String) = Props(new UserActor(phoneNumber, displayName))
+  def props(phoneNumber: String, displayName: String)(implicit ws: WSClient) = Props(new UserActor(phoneNumber, displayName))
 
   case class CheckState(target: String, inbound: Boolean)
 
@@ -52,7 +53,7 @@ object UserActor {
   }
 }
 
-class UserActor(phoneNumber: String, displayName: String) extends Actor with StickleDb {
+class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient) extends Actor with StickleDb {
 
   Logger.trace(s"UserActor - phoneNumber: $phoneNumber, path: ${self.path.toString}")
 

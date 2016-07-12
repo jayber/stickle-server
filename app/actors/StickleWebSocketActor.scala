@@ -5,6 +5,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
+import play.api.libs.ws.WSClient
 import reactivemongo.bson.{BSONDocument, _}
 import services.StickleDb
 
@@ -13,10 +14,10 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object StickleWebSocketActor {
-  def props(out: ActorRef)(implicit system: ActorSystem) = Props(new StickleWebSocketActor(out))
+  def props(out: ActorRef)(implicit system: ActorSystem, ws: WSClient) = Props(new StickleWebSocketActor(out))
 }
 
-class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem) extends Actor with StickleDb {
+class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSClient) extends Actor with StickleDb {
 
   var userMessageHandler: Future[Option[ActorRef]] = Future.successful(None)
 

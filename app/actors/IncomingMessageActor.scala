@@ -5,14 +5,15 @@ import actors.UserActor._
 import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
+import play.api.libs.ws.WSClient
 import reactivemongo.bson.{BSONDateTime, BSONDocument}
-import services.StickleDb
+import services.{PushNotifications, StickleDb}
 
 object IncomingMessageActor {
-  def props(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef) = Props(new IncomingMessageActor(phoneNumber, displayName, outgoingMessageActor))
+  def props(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef)(implicit ws: WSClient): Props = Props(new IncomingMessageActor(phoneNumber, displayName, outgoingMessageActor))
 }
 
-class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef) extends Actor with StickleDb {
+class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef)(implicit ws: WSClient) extends Actor with StickleDb {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -66,6 +67,13 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
 
   def sendMessage(targetPhoneNumber: String, message: StickleEvent): Unit = {
     context.actorSelection(s"../../$targetPhoneNumber/out") ! message
+    fuserCollection foreach {
+      _.find(BSONDocument("phoneNumber" -> targetPhoneNumber)).one[BSONDocument] foreach {
+        _ foreach { doc =>
+          PushNotifications.sendNotification(doc.getAs[String]("pushRegistrationId").get, message)
+        }
+      }
+    }
   }
 
   def persistStickleEvent(originator: String, originatorDisplayName: Option[String], recipient: String, status: String) = {

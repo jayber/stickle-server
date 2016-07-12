@@ -32,7 +32,7 @@ object PushNotifications {
         "body" -> s"Open to view"
       )
       case StickleStatusChangedEvent(_, state) => Json.obj(
-        "title" -> s"Stickle $state from ${nameOpt.getOrElse("")}",
+        "title" -> s"Stickle $state by ${nameOpt.getOrElse("")}",
         "icon" -> "myicon",
         "sound" -> "default",
         "tag" -> nameOpt.getOrElse[String](""),

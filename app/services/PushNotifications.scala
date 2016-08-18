@@ -24,7 +24,7 @@ object PushNotifications {
         "sound" -> "default",
         "tag" -> name,
         "priority" -> "high",
-        "body" -> s"$name stickled you. Tap to accept or decline."
+        "body" -> s"$name stickled you. Tap to respond."
       )
       case StickleClosedEvent(_) => Json.obj(
         "title" -> s"${nameOpt.getOrElse("")} closed your stickle",
@@ -33,13 +33,13 @@ object PushNotifications {
         "tag" -> nameOpt.getOrElse[String](""),
         "body" -> s"Tap to view"
       )
-      case StickleStatusChangedEvent(_, state) => Json.obj(
-        "title" -> s"Stickle $state by ${nameOpt.getOrElse("")}",
+      case state@StickleStatusChangedEvent(_, _) => Json.obj(
+        "title" -> s"${nameOpt.getOrElse("")} ${state.translateState}",
         "icon" -> "myicon",
         "priority" -> "high",
         "sound" -> "default",
         "tag" -> nameOpt.getOrElse[String](""),
-        "body" -> s"Your stickle was $state. Tap to view."
+        "body" -> s"Tap to view and respond."
       )
     })))
 

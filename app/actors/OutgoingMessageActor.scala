@@ -15,7 +15,12 @@ object OutgoingMessageActor {
   trait StickleEvent
   case class StickleOnEvent(sourcePhoneNumber: String, sourceDisplayName: String) extends StickleEvent
   case class StickleClosedEvent(sourcePhoneNumber: String) extends StickleEvent
-  case class StickleStatusChangedEvent(sourcePhoneNumber: String, state: String) extends StickleEvent
+  case class StickleStatusChangedEvent(sourcePhoneNumber: String, state: String) extends StickleEvent {
+    val translation = Map("accepted" -> "ready to call", "un-accepted" -> "not ready to call")
+    def translateState: String = {
+      translation(state)
+    }
+  }
 
   case class ContactStatus(phoneNumber: String, status: String)
 

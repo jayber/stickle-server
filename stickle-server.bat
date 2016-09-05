@@ -1,0 +1,1 @@
+C:\activator-dist-1.3.9\bin\activator.bat -Daws.accessKeyId=AKIAIJF5UAJ7SKMKZORA -Daws.secretKey=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 "run 9001"

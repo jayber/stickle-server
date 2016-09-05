@@ -15,7 +15,8 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.reactivemongo" %% "play2-reactivemongo" % "0.11.11"
+  "org.reactivemongo" %% "play2-reactivemongo" % "0.11.11",
+  "com.amazonaws" % "aws-java-sdk-sns" % "1.11.22"
 )
 
 resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"

@@ -3,6 +3,8 @@
 # ~~~~
 
 POST        /api/user/:phoneNum                            controllers.UserController.register(phoneNum)
+POST        /api/verification/:phoneNum        controllers.UserController.verify(phoneNum)
+POST        /api/resend/:phoneNum              controllers.UserController.resend(phoneNum)
 POST        /api/feedback        controllers.FeedbackController.feedback
 
 GET         /api/ws                                        controllers.SocketController.get

@@ -3,6 +3,7 @@ package actors
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
+import org.jasypt.digest.StandardStringDigester
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
@@ -40,19 +41,22 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
       case Some(_) => ackAuthentication()
         userOptFut
       case None => fuserCollection.flatMap {
-        Logger.debug(s"finding user: ${(msg \ "data" \ "userId").as[String]}")
-        _.find(BSONDocument("_id" -> (msg \ "data" \ "userId").as[String]))
+        val authId: String = (msg \ "data" \ "authId").as[String]
+        Logger.debug(s"finding authid: ${authId}")
+        val digester = new StandardStringDigester()
+        digester.setSaltSizeBytes(0)
+        _.find(BSONDocument("authId" -> digester.digest(authId)))
           .one[BSONDocument].flatMap {
           case Some(result) =>
             Logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}")
             fuserCollection.foreach {
               _.update[BSONDocument, BSONDocument](
-                BSONDocument("_id" -> (msg \ "data" \ "userId").as[String]),
+                BSONDocument("authId" -> authId),
                 BSONDocument("$set" -> BSONDocument("pushRegistrationId" -> (msg \ "data" \ "pushRegistrationId").as[String])))
             }
             findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber").get, result.getAs[String]("displayName").get)
           case _ =>
-            Logger.debug(s"no user for ${(msg \ "data" \ "userId").as[String]}")
+            Logger.debug(s"no user for ${authId}")
             ackAuthenticationFailure()
             self ! PoisonPill
             Future.successful(None) //this would actually be the same as returning 'myUser' but is more clear

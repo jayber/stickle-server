@@ -16,7 +16,10 @@ libraryDependencies ++= Seq(
 
 libraryDependencies ++= Seq(
   "org.reactivemongo" %% "play2-reactivemongo" % "0.11.11",
-  "com.amazonaws" % "aws-java-sdk-sns" % "1.11.22"
+  "com.amazonaws" % "aws-java-sdk-sns" % "1.11.22",
+  "commons-codec" % "commons-codec" % "1.9",
+  "org.jasypt" % "jasypt" % "1.9.2"
+
 )
 
 resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"

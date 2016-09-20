@@ -33,7 +33,8 @@ class UserController @Inject() extends Controller with StickleDb {
         fuserCollection.flatMap {
           _.update[BSONDocument, BSONDocument](
             BSONDocument("_id" -> user.get("_id")),
-            BSONDocument("$set" -> BSONDocument("verificationCode" -> sendSMS(phoneNum), "createdDate" -> BSONDateTime(System.currentTimeMillis()))))
+            BSONDocument("$set" -> BSONDocument("verificationCode" -> sendSMS(phoneNum),
+              "displayNameChange" -> displayName, "createdDate" -> BSONDateTime(System.currentTimeMillis()))))
         }.map { wresult => Ok("") }
       case None =>
         fuserCollection.flatMap {
@@ -49,19 +50,25 @@ class UserController @Inject() extends Controller with StickleDb {
     }
   }
 
+  def getNameUpdate(result: BSONDocument): String = {
+    result.getAs[String]("displayNameChange") match {
+      case Some(newName) => newName
+      case _ => result.getAs[String]("displayName").get
+    }
+  }
+
   def verify(phoneNum: String) = Action.async { request =>
     val verificationCode = (request.body.asJson.get \ "verificationCode").as[String]
     Logger.debug(s"verify $phoneNum, $verificationCode")
-    val query = BSONDocument("phoneNumber" -> phoneNum, "verificationCode" -> verificationCode.toUpperCase())
+    val query = BSONDocument("phoneNumber" -> phoneNum, "verificationCode" -> digest(verificationCode.toUpperCase))
     fuserCollection.flatMap(_.find(query).one[BSONDocument]).flatMap {
       case Some(result) =>
-        if ((new Date().getTime - result.getAs[Date]("createdDate").get.getTime()) < 1000 * 60 * 10) {
-
+        if ((new Date().getTime - result.getAs[Date]("createdDate").get.getTime) < 1000 * 60 * 10) {
           val (authId, hashedId) = generateAuth
           fuserCollection.foreach(_.update[BSONDocument, BSONDocument](
             BSONDocument("_id" -> result.get("_id")),
-            BSONDocument("$set" -> BSONDocument("authId" -> hashedId))))
-
+            BSONDocument("$set" -> BSONDocument("authId" -> hashedId, "displayName" -> getNameUpdate(result)),
+              "$unset" -> BSONDocument("displayNameChange" -> ""))))
           Future(Ok(Json.obj("authId" -> authId)))
         } else {
           Future(BadRequest("Verification failed"))
@@ -72,7 +79,6 @@ class UserController @Inject() extends Controller with StickleDb {
 
   def resend(phoneNum: String) = Action.async { request =>
     Logger.debug(s"resend code $phoneNum")
-
     val query = BSONDocument("phoneNumber" -> phoneNum)
     fuserCollection.flatMap(_.find(query).one[BSONDocument]).flatMap {
       case Some(user) =>
@@ -88,7 +94,7 @@ class UserController @Inject() extends Controller with StickleDb {
   def messageAttributes(): util.Map[String, MessageAttributeValue] = {
     val smsAttributes = new util.HashMap[String, MessageAttributeValue]()
     smsAttributes.put("AWS.SNS.SMS.SenderID", new MessageAttributeValue()
-      .withStringValue("Stickle") //The sender ID shown on the device.
+      .withStringValue("Stickle")
       .withDataType("String"))
     smsAttributes
   }
@@ -96,23 +102,25 @@ class UserController @Inject() extends Controller with StickleDb {
   val random = new SecureRandom()
 
   def generateAuth: (String, String) = {
-    val code = Base64.encodeBase64URLSafeString(new BigInteger(512, random).toByteArray())
+    val code = Base64.encodeBase64URLSafeString(new BigInteger(256, random).toByteArray)
+    (code, digest(code))
+  }
 
+  def digest(code: String): String = {
     val digester = new StandardStringDigester()
     digester.setSaltSizeBytes(0)
-    val hashedCode = digester.digest(code)
-    (code, hashedCode)
+    digester.digest(code)
   }
 
   def sendSMS(phoneNum: String): String = {
-    if (phoneNum.length() > 6) {
-      val code = new BigInteger(56, random).toString(32).toUpperCase().substring(0, 6)
+    digest(if (phoneNum.length() > 6) {
+      val code = new BigInteger(56, random).toString(32).toUpperCase.substring(0, 6)
 
       val snsClient = new AmazonSNSClient()
       val message =
         s"""$code
             |Stickle verification code.
-            |Please enter into Stickle SMS code field to verify.""".stripMargin
+            |Please enter into Stickle SMS code field to verify. (Try copying and pasting the whole message)""".stripMargin
       /*        |Or click:
         |app.stickle.co/v/$code""".stripMargin*/
       val result = snsClient.publish(new PublishRequest()
@@ -123,6 +131,6 @@ class UserController @Inject() extends Controller with StickleDb {
       code
     } else {
       phoneNum
-    }
+    })
   }
 }

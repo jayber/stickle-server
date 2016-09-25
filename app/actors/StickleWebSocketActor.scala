@@ -24,7 +24,6 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
 
   def receive = {
     case msg: JsValue =>
-      Logger.trace("received: " + Json.stringify(msg))
       (msg \ "event").as[String] match {
         case "authenticate" =>
           userMessageHandler = authenticate(msg, userMessageHandler)
@@ -42,7 +41,6 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
         userOptFut
       case None => fuserCollection.flatMap {
         val authId: String = (msg \ "data" \ "authId").as[String]
-        Logger.debug(s"finding authid: ${authId}")
         val digester = new StandardStringDigester()
         digester.setSaltSizeBytes(0)
         _.find(BSONDocument("authId" -> digester.digest(authId)))
@@ -56,7 +54,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
             }
             findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber").get, result.getAs[String]("displayName").get)
           case _ =>
-            Logger.debug(s"no user for ${authId}")
+            Logger.debug(s"no user found")
             ackAuthenticationFailure()
             self ! PoisonPill
             Future.successful(None) //this would actually be the same as returning 'myUser' but is more clear

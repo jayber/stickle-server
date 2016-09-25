@@ -59,7 +59,7 @@ class UserController @Inject() extends Controller with StickleDb {
 
   def verify(phoneNum: String) = Action.async { request =>
     val verificationCode = (request.body.asJson.get \ "verificationCode").as[String]
-    Logger.debug(s"verify $phoneNum, $verificationCode")
+    Logger.debug(s"verify $phoneNum")
     val query = BSONDocument("phoneNumber" -> phoneNum, "verificationCode" -> digest(verificationCode.toUpperCase))
     fuserCollection.flatMap(_.find(query).one[BSONDocument]).flatMap {
       case Some(result) =>

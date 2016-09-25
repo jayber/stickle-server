@@ -1,6 +1,7 @@
 # Routes
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
+GET        /        controllers.DumbController.healthCheck
 
 POST        /api/user/:phoneNum                            controllers.UserController.register(phoneNum)
 POST        /api/verification/:phoneNum        controllers.UserController.verify(phoneNum)

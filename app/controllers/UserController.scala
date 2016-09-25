@@ -119,8 +119,7 @@ class UserController @Inject() extends Controller with StickleDb {
       val snsClient = new AmazonSNSClient()
       val message =
         s"""$code
-            |Stickle verification code.
-            |Please enter into Stickle SMS code field to verify. (Try copying and pasting the whole message)""".stripMargin
+            |Enter into Stickle SMS code field to verify. (Try copying and pasting the whole message)""".stripMargin
       /*        |Or click:
         |app.stickle.co/v/$code""".stripMargin*/
       val result = snsClient.publish(new PublishRequest()

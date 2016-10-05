@@ -8,7 +8,7 @@ import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
 import reactivemongo.bson.{BSONDocument, _}
-import services.StickleDb
+import services.{StickleConsts, StickleDb}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -18,7 +18,7 @@ object StickleWebSocketActor {
   def props(out: ActorRef)(implicit system: ActorSystem, ws: WSClient) = Props(new StickleWebSocketActor(out))
 }
 
-class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSClient) extends Actor with StickleDb {
+class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSClient) extends Actor with StickleDb with StickleConsts {
 
   var userMessageHandler: Future[Option[ActorRef]] = Future.successful(None)
 
@@ -43,14 +43,15 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
         val authId: String = (msg \ "data" \ "authId").as[String]
         val digester = new StandardStringDigester()
         digester.setSaltSizeBytes(0)
-        _.find(BSONDocument("authId" -> digester.digest(authId)))
+        val authIdDigest: String = digester.digest(authId)
+        _.find(BSONDocument("authId" -> authIdDigest))
           .one[BSONDocument].flatMap {
           case Some(result) =>
-            Logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}")
+            Logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}, pushRegId: ${(msg \ "data" \ pushRegistrationId).as[String]}")
             fuserCollection.foreach {
               _.update[BSONDocument, BSONDocument](
-                BSONDocument("authId" -> authId),
-                BSONDocument("$set" -> BSONDocument("pushRegistrationId" -> (msg \ "data" \ "pushRegistrationId").as[String])))
+                BSONDocument("authId" -> authIdDigest),
+                BSONDocument("$set" -> BSONDocument(pushRegistrationId -> (msg \ "data" \ pushRegistrationId).as[String])))
             }
             findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber").get, result.getAs[String]("displayName").get)
           case _ =>

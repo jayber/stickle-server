@@ -7,13 +7,13 @@ import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
 import reactivemongo.bson.{BSONDateTime, BSONDocument}
-import services.{PushNotifications, StickleDb}
+import services.{PushNotifications, StickleConsts, StickleDb}
 
 object IncomingMessageActor {
   def props(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef)(implicit ws: WSClient): Props = Props(new IncomingMessageActor(phoneNumber, displayName, outgoingMessageActor))
 }
 
-class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef)(implicit ws: WSClient) extends Actor with StickleDb {
+class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMessageActor: ActorRef)(implicit ws: WSClient) extends Actor with StickleDb with StickleConsts {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -70,7 +70,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
     fuserCollection foreach {
       _.find(BSONDocument("phoneNumber" -> targetPhoneNumber)).one[BSONDocument] foreach {
         _ foreach { doc =>
-          PushNotifications.sendNotification(doc.getAs[String]("pushRegistrationId").get, sourceDisplayName, message)
+          PushNotifications.sendNotification(doc.getAs[String](pushRegistrationId).get, sourceDisplayName, message)
         }
       }
     }

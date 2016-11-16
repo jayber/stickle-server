@@ -64,7 +64,7 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
 
     case socket: ActorRef =>
       outgoingMessageActor ! socket
-      updateFromDb()
+      syncStateFromDb()
       sender() ! incomingMessageActor
 
     case message@CheckState(targetPhoneNumber, inbound) =>
@@ -90,7 +90,8 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
       }
   }
 
-  def updateFromDb(): Unit = {
+  def syncStateFromDb(): Unit = {
+    Logger.trace("sync state from db")
     val query: BSONDocument = BSONDocument("$or" -> BSONArray(BSONDocument("originator" -> phoneNumber), BSONDocument("recipient" -> phoneNumber)))
     querySendAndDelete(query, broadcastClosedAndRejected = false)
   }

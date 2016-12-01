@@ -1,3 +1,15 @@
-sudo bin/stickle-server -Daws.accessKeyId=AKIAIJF5UAJ7SKMKZORA -Daws.secretKey=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 -Dhttp.port=80 -J-Xmx750m -J-Xms750m 2> /dev/null &
+-- to build for production run 'dist' task in activator. i.e. c:\work\stickle\stickle-server\activator dist
+
+cd sticklexxx
 
 sudo kill `cat RUNNING_PID`
+
+cd ..
+
+sudo rm -r sticklexxx.zip
+
+unzip sticklexxx
+
+cd sticklexxx
+
+sudo bin/stickle-server -Daws.accessKeyId=AKIAIJF5UAJ7SKMKZORA -Daws.secretKey=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 -Dhttp.port=80 -J-Xmx750m -J-Xms750m 2> /dev/null &

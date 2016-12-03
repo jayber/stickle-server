@@ -3,12 +3,12 @@
 # ~~~~
 GET        /        controllers.DumbController.healthCheck
 
-POST        /api/user/:phoneNum                            controllers.UserController.register(phoneNum)
-POST        /api/verification/:phoneNum        controllers.UserController.verify(phoneNum)
-POST        /api/resend/:phoneNum              controllers.UserController.resend(phoneNum)
-POST        /api/feedback        controllers.FeedbackController.feedback
+POST        /api/v1/user/:phoneNum                controllers.UserController.register(phoneNum)
+POST        /api/v1/verification/:phoneNum        controllers.UserController.verify(phoneNum)
+POST        /api/v1/resend/:phoneNum              controllers.UserController.resend(phoneNum)
+POST        /api/v1/feedback                      controllers.FeedbackController.feedback
 
-GET         /api/ws                                        controllers.SocketController.get
+GET         /api/v1/ws                            controllers.SocketController.get
 
 # Map static resources from the /public folder to the /assets URL path
 GET         /assets/*file                              controllers.Assets.versioned(path="/public", file: Asset)

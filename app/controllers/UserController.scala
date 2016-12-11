@@ -116,7 +116,6 @@ class UserController @Inject() extends Controller with StickleDb {
     digest(if (phoneNum.length() > 7) {
       val code = new BigInteger(56, random).toString(32).toUpperCase.substring(0, 6)
 
-      val phoneNumWithoutPrefix = phoneNum.substring(1)
       val snsClient = new AmazonSNSClient()
       val message =
         s"""$code
@@ -126,8 +125,8 @@ class UserController @Inject() extends Controller with StickleDb {
       val result = snsClient.publish(new PublishRequest()
         .withMessage(message)
         .withMessageAttributes(messageAttributes())
-        .withPhoneNumber(phoneNumWithoutPrefix))
-      Logger.debug(s"SMS sent to $phoneNumWithoutPrefix - messageId:${result.toString}")
+        .withPhoneNumber(phoneNum))
+      Logger.debug(s"SMS sent to $phoneNum - messageId:${result.toString}")
       code
     } else {
       phoneNum.substring(1)

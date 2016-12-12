@@ -6,8 +6,10 @@ import java.util
 import java.util.Date
 import javax.inject._
 
-import com.amazonaws.services.sns.AmazonSNSClient
-import com.amazonaws.services.sns.model.{MessageAttributeValue, PublishRequest}
+import com.amazonaws.services.sns.model.MessageAttributeValue
+import com.twilio.Twilio
+import com.twilio.`type`.PhoneNumber
+import com.twilio.rest.api.v2010.account.Message
 import org.apache.commons.codec.binary.Base64
 import org.jasypt.digest.StandardStringDigester
 import play.api.Logger
@@ -116,20 +118,23 @@ class UserController @Inject() extends Controller with StickleDb {
     digest(if (phoneNum.length() > 7) {
       val code = new BigInteger(56, random).toString(32).toUpperCase.substring(0, 6)
 
-      val snsClient = new AmazonSNSClient()
-      val message =
-        s"""$code
-            |Enter into Stickle SMS code field to verify. (Try copying and pasting the whole message)""".stripMargin
-      /*        |Or click:
-        |app.stickle.co/v/$code""".stripMargin*/
-      val result = snsClient.publish(new PublishRequest()
-        .withMessage(message)
-        .withMessageAttributes(messageAttributes())
-        .withPhoneNumber(phoneNum))
-      Logger.debug(s"SMS sent to $phoneNum - messageId:${result.toString}")
+      sendSMS(phoneNum, code)
       code
     } else {
       phoneNum.substring(1)
     })
+  }
+
+  private def sendSMS(phoneNum: String, code: String): Unit = {
+    Twilio.init(System.getProperty("twilio.ACCOUNT_SID"), System.getProperty("twilio.AUTH_TOKEN"))
+    val body =
+      s"""$code
+          |Enter into Stickle SMS code field to verify. (Try copying and pasting the whole message)""".
+        stripMargin
+    /*        |Or click:
+        |app.stickle.co/v/$code""".stripMargin*/
+    val message = Message.creator(new PhoneNumber(phoneNum), new PhoneNumber(System.getProperty("twilio.FROM")), body).create()
+
+    Logger.debug(s"SMS sent to $phoneNum - message.sid:${message.getSid}")
   }
 }

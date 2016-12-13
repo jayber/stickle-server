@@ -6,6 +6,8 @@ import java.util
 import java.util.Date
 import javax.inject._
 
+import akka.actor.{ActorSystem, PoisonPill}
+import akka.util.Timeout
 import com.amazonaws.services.sns.model.MessageAttributeValue
 import com.twilio.Twilio
 import com.twilio.`type`.PhoneNumber
@@ -20,10 +22,13 @@ import services.StickleDb
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 
 @Singleton
-class UserController @Inject() extends Controller with StickleDb {
+class UserController @Inject()(implicit system: ActorSystem) extends Controller with StickleDb {
+
+  implicit val timeout = Timeout(5 seconds)
 
   def register(phoneNum: String) = Action.async { request =>
     val displayName = (request.body.asJson.get \ "displayName").as[String]
@@ -71,7 +76,11 @@ class UserController @Inject() extends Controller with StickleDb {
             BSONDocument("_id" -> result.get("_id")),
             BSONDocument("$set" -> BSONDocument("authId" -> hashedId, "displayName" -> getNameUpdate(result)),
               "$unset" -> BSONDocument("displayNameChange" -> ""))))
-          Future(Ok(Json.obj("authId" -> authId)))
+
+          system.actorSelection(s"user/$phoneNum").resolveOne.map { userActor =>
+            userActor ! PoisonPill //so that fields are reloaded
+            Ok(Json.obj("authId" -> authId))
+          }
         } else {
           Future(BadRequest("Verification failed"))
         }

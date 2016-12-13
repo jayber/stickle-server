@@ -60,7 +60,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
   }
 
   def postStickleEventToPeer(targetPhoneNumber: String, status: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
-    Logger.debug(s"stickle $status received by source to: $targetPhoneNumber")
+    Logger.debug(s"stickle $status received by source ($sourceDisplayName) to: $targetPhoneNumber")
     persistStickleEvent(phoneNumber, sourceDisplayName, targetPhoneNumber, status)
     sendMessage(targetPhoneNumber, sourceDisplayName, message)
   }

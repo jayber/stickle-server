@@ -77,10 +77,10 @@ class UserController @Inject()(implicit system: ActorSystem) extends Controller 
             BSONDocument("$set" -> BSONDocument("authId" -> hashedId, "displayName" -> getNameUpdate(result)),
               "$unset" -> BSONDocument("displayNameChange" -> ""))))
 
-          system.actorSelection(s"user/$phoneNum").resolveOne.map { userActor =>
+          system.actorSelection(s"user/$phoneNum").resolveOne.onSuccess { case userActor =>
             userActor ! PoisonPill //so that fields are reloaded
-            Ok(Json.obj("authId" -> authId))
           }
+          Future(Ok(Json.obj("authId" -> authId)))
         } else {
           Future(BadRequest("Verification failed"))
         }

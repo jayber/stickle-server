@@ -27,6 +27,10 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
       (msg \ "event").as[String] match {
         case "authenticate" =>
           userMessageHandler = authenticate(msg, userMessageHandler)
+
+        case "logout" =>
+          logout(msg)
+
         case event =>
           userMessageHandler foreach {
             case Some(messageHandler) => messageHandler !(event, msg)
@@ -35,17 +39,27 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
       }
   }
 
+  def logout(msg: JsValue): Unit = {
+    val authIdDigest = getAuthIdDigest(msg)
+    findUserRecord(authIdDigest) foreach {
+      case Some(result) =>
+        Logger.debug(s"found user to logout: ${result.getAs[String]("phoneNumber")}}")
+        fuserCollection.foreach {
+          _.update[BSONDocument, BSONDocument](
+            BSONDocument("authId" -> authIdDigest),
+            BSONDocument("$unset" -> BSONDocument("authId" -> "")))
+        }
+    }
+    self ! PoisonPill
+  }
+
   def authenticate(msg: JsValue, userOptFut: Future[Option[ActorRef]]): Future[Option[ActorRef]] = {
     userOptFut.flatMap {
       case Some(_) => ackAuthentication()
         userOptFut
-      case None => fuserCollection.flatMap {
-        val authId: String = (msg \ "data" \ "authId").as[String]
-        val digester = new StandardStringDigester()
-        digester.setSaltSizeBytes(0)
-        val authIdDigest: String = digester.digest(authId)
-        _.find(BSONDocument("authId" -> authIdDigest))
-          .one[BSONDocument].flatMap {
+      case None =>
+        val authIdDigest = getAuthIdDigest(msg)
+        findUserRecord(authIdDigest).flatMap {
           case Some(result) =>
             Logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}, pushRegId: ${(msg \ "data" \ pushRegistrationId).as[String]}")
             fuserCollection.foreach {
@@ -60,10 +74,23 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
             self ! PoisonPill
             Future.successful(None) //this would actually be the same as returning 'myUser' but is more clear
         }
-      }
     }
   }
 
+  def findUserRecord(authIdDigest: String) = {
+    fuserCollection.flatMap {
+      _.find(BSONDocument("authId" -> authIdDigest))
+        .one[BSONDocument]
+    }
+  }
+
+  def getAuthIdDigest(msg: JsValue): String = {
+    val authId: String = (msg \ "data" \ "authId").as[String]
+    val digester = new StandardStringDigester()
+    digester.setSaltSizeBytes(0)
+    val authIdDigest: String = digester.digest(authId)
+    authIdDigest
+  }
   def findOrCreateIncomingMessageActor(phoneNumber: String, displayName: String): Future[Some[ActorRef]] = {
 
     implicit val timeout = Timeout(5 seconds)

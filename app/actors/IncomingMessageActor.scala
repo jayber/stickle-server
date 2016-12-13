@@ -38,7 +38,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
     case ("checkContactStatus", msg: JsValue) =>
       Logger.trace("checkContactStatus")
       val targetPhoneNumber = (msg \ "data" \ "phoneNum").as[String]
-      fuserCollection.flatMap(_.find(BSONDocument("phoneNumber" -> targetPhoneNumber)).one[BSONDocument]).map {
+      fuserCollection.flatMap(_.find(BSONDocument("phoneNumber" -> targetPhoneNumber, "authId" -> BSONDocument("$exists" -> true))).one[BSONDocument]).map {
         case Some(_) =>
           outgoingMessageActor ! ContactStatus(targetPhoneNumber, "registered")
         case None =>

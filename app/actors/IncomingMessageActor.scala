@@ -6,7 +6,7 @@ import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
-import reactivemongo.bson.{BSONDateTime, BSONDocument}
+import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument}
 import services.{PushNotifications, StickleConsts, StickleDb}
 
 object IncomingMessageActor {
@@ -83,7 +83,8 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
           "originatorDisplayName" -> originatorDisplayName.getOrElse(""),
           "recipient" -> recipient,
           "status" -> status,
-          "createdDate" -> BSONDateTime(System.currentTimeMillis)
+          "createdDate" -> BSONDateTime(System.currentTimeMillis),
+          "delivery" -> BSONArray(BSONDocument("status" -> "sent", "time" -> BSONDateTime(System.currentTimeMillis)))
         )
       )
     }

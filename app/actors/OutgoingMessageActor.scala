@@ -1,7 +1,5 @@
 package actors
 
-import java.util.Date
-
 import actors.OutgoingMessageActor._
 import actors.UserActor._
 import akka.actor.{Actor, ActorRef, Props}
@@ -24,7 +22,6 @@ object OutgoingMessageActor {
 
   case class ContactStatus(phoneNumber: String, status: String)
 
-  case class StickleState(id: Option[String], originator: String, originatorDisplayName: String, recipient: String, createdDate: Date, state: String)
 }
 
 class OutgoingMessageActor extends Actor with StickleDb {

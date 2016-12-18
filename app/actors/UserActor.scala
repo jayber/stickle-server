@@ -2,7 +2,6 @@ package actors
 
 import java.util.Date
 
-import actors.OutgoingMessageActor.StickleState
 import actors.UserActor._
 import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
@@ -11,7 +10,6 @@ import play.api.libs.ws.WSClient
 import reactivemongo.bson._
 import services.StickleDb
 
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -27,9 +25,11 @@ object UserActor {
   val open: String = "open"
   val completed: String = "completed"
 
+  case class StickleState(id: Option[String], originator: String, originatorDisplayName: String, recipient: String, createdDate: Date, state: String)
+
   implicit val stickleStateDocumentReader: BSONDocumentReader[StickleState] = new BSONDocumentReader[StickleState] {
     override def read(bson: BSONDocument): StickleState = {
-      Logger.trace(s"reading: ${bson.getAs[BSONObjectID]("_id").map(_.stringify)}")
+      Logger(this.getClass).trace(s"reading: ${bson.getAs[BSONObjectID]("_id").map(_.stringify)}")
       StickleState(
         bson.getAs[BSONObjectID]("_id").map(_.stringify),
         bson.getAs[String]("originator").get,
@@ -55,7 +55,7 @@ object UserActor {
 
 class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient) extends Actor with StickleDb {
 
-  Logger.trace(s"UserActor - phoneNumber: $phoneNumber, path: ${self.path.toString}")
+  Logger(this.getClass).trace(s"UserActor - phoneNumber: $phoneNumber, path: ${self.path.toString}")
 
   val outgoingMessageActor = context.actorOf(OutgoingMessageActor.props(), "out")
   val incomingMessageActor = context.actorOf(IncomingMessageActor.props(phoneNumber, displayName, outgoingMessageActor), "in")
@@ -68,7 +68,7 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
       sender() ! incomingMessageActor
 
     case message@CheckState(targetPhoneNumber, inbound) =>
-      Logger.trace(s"check-state message: $message")
+      Logger(this.getClass).trace(s"check-state message: $message")
 
       val query: BSONDocument = inbound match {
         case true =>
@@ -79,7 +79,7 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
 
       querySendAndDelete(query, broadcastClosedAndRejected = true).foreach { empty =>
         if (empty) {
-          Logger.trace(s"doing an empty for $phoneNumber, target=$targetPhoneNumber, inbound=$inbound")
+          Logger(this.getClass).trace(s"doing an empty for $phoneNumber, target=$targetPhoneNumber, inbound=$inbound")
           inbound match {
             case true =>
               outgoingMessageActor ! StickleState(None, targetPhoneNumber, "", phoneNumber, new Date(), closed)
@@ -91,60 +91,63 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
   }
 
   def syncStateFromDb(): Unit = {
-    Logger.trace("sync state from db")
+    Logger(this.getClass).trace("sync state from db")
     val query: BSONDocument = BSONDocument("$or" -> BSONArray(BSONDocument("originator" -> phoneNumber), BSONDocument("recipient" -> phoneNumber)))
     querySendAndDelete(query, broadcastClosedAndRejected = false)
   }
 
   def querySendAndDelete(query: BSONDocument, broadcastClosedAndRejected: Boolean): Future[Boolean] = {
-    val eventMap = mutable.Map[(String, String), Option[StickleState]]()
-    fstickleCollection.map {
-      _.find(query)
-        .sort(BSONDocument("createdDate" -> -1)).cursor[StickleState]().enumerate()
-    }
-      .flatMap({ enumerator =>
+    fstickleCollection.map { coll =>
       var empty = true
-      enumerator.run(Iteratee.foreach { row =>
+      var eventMap = Map[(String, String), Option[StickleState]]()
+      coll.find(query)
+        .sort(BSONDocument("createdDate" -> -1)).cursor[StickleState]().enumerate().run(Iteratee.foreach { row =>
+        eventMap = rowMatch(broadcastClosedAndRejected, row, eventMap)
         empty = false
-        row match {
-          case result@StickleState(_, originator, _, recipient, _, `completed`) =>
-            dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
-          case result@StickleState(_, originator, _, recipient, _, `closed`) =>
-            dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
-          case result@StickleState(_, originator, _, recipient, _, `rejected`) =>
-            dealWithClosedOrRejected(eventMap, originator, recipient, result, broadcastClosedAndRejected = broadcastClosedAndRejected)
-          case result@StickleState(_, originator, originatorDisplayName, recipient, _, `open`) =>
-            eventMap.getOrElse((originator, recipient), null) match {
-              case null => outgoingMessageActor ! result
-                eventMap((originator, recipient)) = None
-              case Some(previous) => outgoingMessageActor ! StickleState(None, originator, originatorDisplayName, recipient, previous.createdDate, previous.state)
-                eventMap((originator, recipient)) = None
-              case _ => deleteFromDB(result)
-            }
-          case result@StickleState(_, originator, originatorDisplayName, recipient, _, _) =>
-            eventMap.getOrElse((originator, recipient), null) match {
-              case null => eventMap((originator, recipient)) = Some(result)
-              case _ => deleteFromDB(result)
-            }
-        }
-      }).map { _ =>
-        empty
-      }
-    })
+      })
+      empty
+    }
   }
 
-  def dealWithClosedOrRejected(eventMap: mutable.Map[(String, String), Option[StickleState]], originator: String, recipient: String, result: StickleState, broadcastClosedAndRejected: Boolean): Unit = {
+  private def rowMatch(broadcastClosedAndRejected: Boolean, row: StickleState, eventMap: Map[(String, String), Option[StickleState]]): Map[(String, String), Option[StickleState]] = {
+    Logger(this.getClass).trace(row.toString)
+    if (List(completed, closed, rejected).contains(row.state)) {
+      dealWithClosedOrRejected(eventMap, row.originator, row.recipient, row, broadcastClosedAndRejected = broadcastClosedAndRejected)
+    } else if (List(unaccepted, accepted).contains(row.state)) {
+      eventMap.getOrElse((row.originator, row.recipient), null) match {
+        case null => outgoingMessageActor ! row
+          eventMap + ((row.originator -> row.recipient) -> None)
+        case Some(previous) => outgoingMessageActor ! StickleState(None, row.originator, row.originatorDisplayName, row.recipient, previous.createdDate, previous.state)
+          eventMap + ((row.originator -> row.recipient) -> None)
+        case _ => deleteFromDB(row)
+          eventMap
+      }
+    } else {
+      // row.state == open
+      eventMap.getOrElse((row.originator, row.recipient), null) match {
+        case null =>
+          eventMap + ((row.originator -> row.recipient) -> Some(row))
+        case _ => deleteFromDB(row)
+          eventMap
+      }
+    }
+  }
+
+
+  def dealWithClosedOrRejected(eventMap: Map[(String, String), Option[StickleState]], originator: String, recipient: String, result: StickleState, broadcastClosedAndRejected: Boolean): Map[(String, String), Option[StickleState]] = {
     eventMap.getOrElse((originator, recipient), null) match {
-      case null => eventMap((originator, recipient)) = None
+      case null =>
         if (broadcastClosedAndRejected) {
           outgoingMessageActor ! result
         }
+        eventMap + ((originator -> recipient) -> None)
       case _ => deleteFromDB(result)
+        eventMap
     }
   }
 
   def deleteFromDB(result: StickleState): Unit = {
-    Logger.trace(s"removing $result")
+    Logger(this.getClass).trace(s"removing $result")
     fstickleCollection foreach (coll => coll.remove(BSONDocument("_id" -> BSONObjectID(result.id.get))))
   }
 }

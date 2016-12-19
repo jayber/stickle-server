@@ -63,7 +63,9 @@ class OutgoingMessageActor extends Actor with StickleDb {
         "originatorDisplayName" -> state.originatorDisplayName,
         "recipient" -> state.recipient,
         "state" -> state.state,
-        "createdDate" -> state.createdDate
+        "createdDate" -> state.createdDate,
+        "deliveryState" -> state.deliveryState,
+        "deliveryTime" -> state.deliveryTime
       ))
     Logger(this.getClass).debug(s"state message: ${Json.stringify(message)}")
     mySocket foreach {_ ! message}

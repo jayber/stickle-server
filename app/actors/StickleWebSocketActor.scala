@@ -22,8 +22,6 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
 
   var userMessageHandler: Future[Option[ActorRef]] = Future.successful(None)
 
-  val logger: Logger = Logger(this.getClass)
-
   def receive = {
     case msg: JsValue =>
       (msg \ "event").as[String] match {
@@ -45,7 +43,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
     val authIdDigest = getAuthIdDigest(msg)
     findUserRecord(authIdDigest) foreach {
       case Some(result) =>
-        logger.debug(s"found user to logout: ${result.getAs[String]("phoneNumber")}}")
+        Logger(this.getClass).debug(s"found user to logout: ${result.getAs[String]("phoneNumber")}}")
         fuserCollection.foreach {
           _.update[BSONDocument, BSONDocument](
             BSONDocument("authId" -> authIdDigest),
@@ -64,7 +62,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
         val authIdDigest = getAuthIdDigest(msg)
         findUserRecord(authIdDigest).flatMap {
           case Some(result) =>
-            logger.debug(s"found user: ${result.getAs[String]("phoneNumber")}, pushRegId: ${(msg \ "data" \ pushRegistrationId).as[String]}")
+            Logger(this.getClass).debug(s"found user: ${result.getAs[String]("phoneNumber")}, pushRegId: ${(msg \ "data" \ pushRegistrationId).as[String]}")
             fuserCollection.foreach {
               _.update[BSONDocument, BSONDocument](
                 BSONDocument("authId" -> authIdDigest),
@@ -72,7 +70,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
             }
             findOrCreateIncomingMessageActor(result.getAs[String]("phoneNumber").get, result.getAs[String]("displayName").get)
           case _ =>
-            logger.debug(s"no user found")
+            Logger(this.getClass).debug(s"no user found")
             ackAuthenticationFailure()
             self ! PoisonPill
             Future.successful(None) //this would actually be the same as returning 'myUser' but is more clear
@@ -101,7 +99,7 @@ class StickleWebSocketActor(out: ActorRef)(implicit system: ActorSystem, ws: WSC
 
     system.actorSelection(s"user/$phoneNumber").resolveOne
       .recover { case e =>
-      logger.debug("creating new UserActor")
+      Logger(this.getClass).debug("creating new UserActor")
       system.actorOf(UserActor.props(phoneNumber, displayName), phoneNumber)
     }
       .flatMap { user =>

@@ -60,7 +60,7 @@ object UserActor {
 
 class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient) extends Actor with StickleDb {
 
-  abstract class StashedStickleStates
+  trait StashedStickleStates
   case class NothingNewer() extends StashedStickleStates
   case class DeleteAnythingOlder() extends StashedStickleStates
   case class StashedResponse(stickleState: StickleState) extends StashedStickleStates

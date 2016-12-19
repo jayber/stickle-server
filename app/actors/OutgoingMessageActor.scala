@@ -26,7 +26,7 @@ object OutgoingMessageActor {
 
 class OutgoingMessageActor extends Actor with StickleDb {
 
-  Logger.trace(s"OutgoingMessageActor - path: ${self.path.toString}")
+  Logger(this.getClass).trace(s"OutgoingMessageActor - path: ${self.path.toString}")
 
   var mySocket: Option[ActorRef] = None
 
@@ -40,18 +40,18 @@ class OutgoingMessageActor extends Actor with StickleDb {
       sendContactStatusToSocket(phoneNumber, status)
 
     case StickleOnEvent(sourcePhoneNumber, sourceDisplayName) =>
-      Logger.debug(s"stickle $open received by target from: $sourcePhoneNumber - $sourceDisplayName")
+      Logger(this.getClass).debug(s"stickle $open received by target from: $sourcePhoneNumber - $sourceDisplayName")
       mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "displayName" -> sourceDisplayName, "status" -> open))}
     case StickleClosedEvent(sourcePhoneNumber) =>
-      Logger.debug(s"stickle closed received by target from: $sourcePhoneNumber")
+      Logger(this.getClass).debug(s"stickle closed received by target from: $sourcePhoneNumber")
       mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "status" -> closed))}
     case StickleStatusChangedEvent(sourcePhoneNumber, status) =>
-      Logger.debug(s"stickle $status received by target from: $sourcePhoneNumber")
+      Logger(this.getClass).debug(s"stickle $status received by target from: $sourcePhoneNumber")
       mySocket foreach {_ ! Json.obj("event" -> "stickle-responded", "data" -> Json.obj("from" -> sourcePhoneNumber, "status" -> status))}
   }
 
   def sendContactStatusToSocket(phoneNumber: String, status: String): Unit = {
-    Logger.trace(s"contactStatus $phoneNumber: $status")
+    Logger(this.getClass).trace(s"contactStatus $phoneNumber: $status")
     mySocket foreach {_ ! Json.obj("event" -> "contactStatus", "data" -> Json.obj("phoneNum" -> phoneNumber, "status" -> status))}
   }
 
@@ -65,7 +65,7 @@ class OutgoingMessageActor extends Actor with StickleDb {
         "state" -> state.state,
         "createdDate" -> state.createdDate
       ))
-    Logger.debug(s"state message: ${Json.stringify(message)}")
+    Logger(this.getClass).debug(s"state message: ${Json.stringify(message)}")
     mySocket foreach {_ ! message}
   }
 }

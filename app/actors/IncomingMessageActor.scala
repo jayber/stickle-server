@@ -17,7 +17,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  Logger.trace(s"IncomingMessageActor - phoneNumber: $phoneNumber, path: ${self.path.toString}")
+  Logger(this.getClass).trace(s"IncomingMessageActor - phoneNumber: $phoneNumber, path: ${self.path.toString}")
 
   override def receive = {
 
@@ -36,7 +36,7 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
       postResponseEventToPeer((msg \ "data" \ "origin").as[String], phoneNumber, Some(displayName), (msg \ "data" \ "status").as[String])
 
     case ("checkContactStatus", msg: JsValue) =>
-      Logger.trace("checkContactStatus")
+      Logger(this.getClass).trace("checkContactStatus")
       val targetPhoneNumber = (msg \ "data" \ "phoneNum").as[String]
       fuserCollection.flatMap(_.find(BSONDocument("phoneNumber" -> targetPhoneNumber, "authId" -> BSONDocument("$exists" -> true))).one[BSONDocument]).map {
         case Some(_) =>
@@ -45,22 +45,25 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
           outgoingMessageActor ! ContactStatus(targetPhoneNumber, "unregistered")
       }
 
+    case ("sync", msg: JsValue) =>
+      context.parent ! "sync"
+
     case ("check-state", msg: JsValue) =>
       context.parent ! CheckState((msg \ "data" \ "phoneNum").as[String], (msg \ "data" \ "inbound").as[Boolean])
 
     case (_, msg: JsValue) =>
-      Logger.debug("Unhandled socket event: " + Json.stringify(msg))
+      Logger(this.getClass).debug("Unhandled socket event: " + Json.stringify(msg))
   }
 
   def postResponseEventToPeer(originatorPhoneNumber: String, recipientPhoneNumber: String, sourceDisplayName: Option[String], status: String): Unit = {
-    Logger.debug(s"stickle $status received by source, origin: $originatorPhoneNumber, recipient: $recipientPhoneNumber")
+    Logger(this.getClass).debug(s"stickle $status received by source, origin: $originatorPhoneNumber, recipient: $recipientPhoneNumber")
     persistStickleEvent(originatorPhoneNumber, None, recipientPhoneNumber, status)
     val message = StickleStatusChangedEvent(phoneNumber, status)
     sendMessage(originatorPhoneNumber, sourceDisplayName: Option[String], message)
   }
 
   def postStickleEventToPeer(targetPhoneNumber: String, status: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
-    Logger.debug(s"stickle $status received by source ($sourceDisplayName) to: $targetPhoneNumber")
+    Logger(this.getClass).debug(s"stickle $status received by source ($sourceDisplayName) to: $targetPhoneNumber")
     persistStickleEvent(phoneNumber, sourceDisplayName, targetPhoneNumber, status)
     sendMessage(targetPhoneNumber, sourceDisplayName, message)
   }

@@ -1,12 +1,14 @@
 package actors
 
+import java.util.Date
+
 import actors.OutgoingMessageActor._
 import actors.UserActor._
 import akka.actor.{Actor, ActorRef, Props}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
-import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument}
+import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONDocumentWriter}
 import services.{PushNotifications, StickleConsts, StickleDb}
 
 object IncomingMessageActor {
@@ -51,24 +53,29 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
     case ("check-state", msg: JsValue) =>
       context.parent ! CheckState((msg \ "data" \ "phoneNum").as[String], (msg \ "data" \ "inbound").as[Boolean])
 
+    case ("delivery", msg: JsValue) =>
+      Logger(this.getClass).debug("delivery: " + Json.stringify(msg))
+      context.parent ! Delivery((msg \ "data" \ "origin").as[String], (msg \ "data" \ "status").as[String], new Date())
+
     case (_, msg: JsValue) =>
       Logger(this.getClass).debug("Unhandled socket event: " + Json.stringify(msg))
   }
 
   def postResponseEventToPeer(originatorPhoneNumber: String, recipientPhoneNumber: String, sourceDisplayName: Option[String], status: String): Unit = {
     Logger(this.getClass).debug(s"stickle $status received by source, origin: $originatorPhoneNumber, recipient: $recipientPhoneNumber")
-    persistStickleEvent(originatorPhoneNumber, None, recipientPhoneNumber, status)
+    val stickleState = persistStickleEvent(originatorPhoneNumber, None, recipientPhoneNumber, status)
     val message = StickleStatusChangedEvent(phoneNumber, status)
-    sendMessage(originatorPhoneNumber, sourceDisplayName: Option[String], message)
+    sendMessage(originatorPhoneNumber, sourceDisplayName: Option[String], message, stickleState)
   }
 
   def postStickleEventToPeer(targetPhoneNumber: String, status: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
     Logger(this.getClass).debug(s"stickle $status received by source ($sourceDisplayName) to: $targetPhoneNumber")
-    persistStickleEvent(phoneNumber, sourceDisplayName, targetPhoneNumber, status)
-    sendMessage(targetPhoneNumber, sourceDisplayName, message)
+    val stickleState = persistStickleEvent(phoneNumber, sourceDisplayName, targetPhoneNumber, status)
+    sendMessage(targetPhoneNumber, sourceDisplayName, message, stickleState)
   }
 
-  def sendMessage(targetPhoneNumber: String, sourceDisplayName: Option[String], message: StickleEvent): Unit = {
+  def sendMessage(targetPhoneNumber: String, sourceDisplayName: Option[String], message: StickleEvent, stickleState: StickleState): Unit = {
+    outgoingMessageActor ! stickleState
     context.actorSelection(s"../../$targetPhoneNumber/out") ! message
     fuserCollection foreach {
       _.find(BSONDocument("phoneNumber" -> targetPhoneNumber)).one[BSONDocument] foreach {
@@ -79,17 +86,25 @@ class IncomingMessageActor(phoneNumber: String, displayName: String, outgoingMes
     }
   }
 
-  def persistStickleEvent(originator: String, originatorDisplayName: Option[String], recipient: String, status: String) = {
-    fstickleCollection foreach {
-      _.insert(
-        BSONDocument("originator" -> originator,
-          "originatorDisplayName" -> originatorDisplayName.getOrElse(""),
-          "recipient" -> recipient,
-          "status" -> status,
-          "createdDate" -> BSONDateTime(System.currentTimeMillis),
-          "delivery" -> BSONArray(BSONDocument("status" -> "sent", "time" -> BSONDateTime(System.currentTimeMillis)))
-        )
+  def persistStickleEvent(originator: String, originatorDisplayName: Option[String], recipient: String, status: String): StickleState = {
+
+    implicit val stickleStateDocumentWriter: BSONDocumentWriter[StickleState] = new BSONDocumentWriter[StickleState] {
+      override def write(state: StickleState): BSONDocument = BSONDocument(
+        "_id" -> state.id,
+        "originator" -> state.originator,
+        "originatorDisplayName" -> state.originatorDisplayName,
+        "recipient" -> state.recipient,
+        "createdDate" -> BSONDateTime(state.createdDate.getTime),
+        "status" -> state.state,
+        "delivery" -> BSONArray(BSONDocument("status" -> state.deliveryState, "time" -> state.deliveryTime.map { date => BSONDateTime(date.getTime) }))
       )
     }
+
+    val stickleState = StickleState(None, originator, originatorDisplayName.getOrElse(""), recipient, new Date(), status, Some("sent"), Some(new Date()))
+
+    fstickleCollection foreach {
+      _.insert(stickleState)
+    }
+    stickleState
   }
 }

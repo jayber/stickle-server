@@ -39,6 +39,11 @@ class OutgoingMessageActor extends Actor with StickleDb {
     case ContactStatus(phoneNumber, status) =>
       sendContactStatusToSocket(phoneNumber, status)
 
+    case (recipient: String, Delivery(_, status, time)) =>
+      val message = Json.obj("event" -> "delivery", "data" -> Json.obj("recipient" -> recipient, "status" -> status, "time" -> time))
+      Logger(this.getClass).debug(s"delivery message: ${Json.stringify(message)}")
+      mySocket foreach {_ ! message}
+
     case StickleOnEvent(sourcePhoneNumber, sourceDisplayName) =>
       Logger(this.getClass).debug(s"stickle $open received by target from: $sourcePhoneNumber - $sourceDisplayName")
       mySocket foreach {_ ! Json.obj("event" -> "stickled", "data" -> Json.obj("from" -> sourcePhoneNumber, "displayName" -> sourceDisplayName, "status" -> open))}

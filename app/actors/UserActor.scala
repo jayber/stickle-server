@@ -17,6 +17,7 @@ object UserActor {
   def props(phoneNumber: String, displayName: String)(implicit ws: WSClient) = Props(new UserActor(phoneNumber, displayName))
 
   case class CheckState(target: String, inbound: Boolean)
+  case class Delivery(origin: String, status: String, time: Date)
 
   val closed: String = "closed"
   val accepted: String = "accepted"
@@ -31,7 +32,7 @@ object UserActor {
   implicit val stickleStateDocumentReader: BSONDocumentReader[StickleState] = new BSONDocumentReader[StickleState] {
     override def read(bson: BSONDocument): StickleState = {
       Logger(this.getClass).trace(s"reading from db: ${bson.getAs[BSONObjectID]("_id").map(_.stringify)}")
-      val delivery = bson.getAs[BSONArray]("delivery").get
+      val delivery = bson.getAs[BSONArray]("delivery") flatMap { array => array.getAs[BSONDocument](array.length - 1) }
 
       StickleState(
         bson.getAs[BSONObjectID]("_id").map(_.stringify),
@@ -40,21 +41,10 @@ object UserActor {
         bson.getAs[String]("recipient").get,
         new Date(bson.getAs[BSONDateTime]("createdDate").get.value),
         bson.getAs[String]("status").get,
-        delivery.getAs[BSONDocument](delivery.length).get.getAs[String]("status"),
-        delivery.getAs[BSONDocument](delivery.length).get.getAs[BSONDateTime]("time") map { date => new Date(date.value) }
+        delivery flatMap {_.getAs[String]("status")},
+        delivery flatMap {_.getAs[BSONDateTime]("time")} map { date => new Date(date.value) }
       )
     }
-  }
-
-  implicit val stickleStateDocumentWriter: BSONDocumentWriter[StickleState] = new BSONDocumentWriter[StickleState] {
-    override def write(state: StickleState): BSONDocument = BSONDocument(
-      "_id" -> state.id,
-      "originator" -> state.originator,
-      "originatorDisplayName" -> state.originatorDisplayName,
-      "recipient" -> state.recipient,
-      "createdDate" -> BSONDateTime(state.createdDate.getTime),
-      "status" -> state.state
-    )
   }
 }
 
@@ -75,6 +65,15 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
     case socket: ActorRef =>
       outgoingMessageActor ! socket
       sender() ! incomingMessageActor
+
+    case delivery@Delivery(origin, status, time) =>
+      Logger(this.getClass).trace(s"delivery by: $phoneNumber, origin: $origin, status: $status")
+      val query = BSONDocument("originator" -> origin, "recipient" -> phoneNumber)
+      val update = BSONDocument("$push" -> BSONDocument("delivery" -> BSONDocument("status" -> status, "time" -> BSONDateTime(time.getTime))))
+      fstickleCollection.onSuccess {
+        case coll => coll.findAndUpdate(query, update)
+      }
+      context.actorSelection(s"../$origin/out") !(phoneNumber, delivery)
 
     case "sync" =>
       Logger(this.getClass).trace(s"sync phoneNumber: $phoneNumber")
@@ -105,6 +104,7 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
   }
 
   def findSendAndDeleteStickleEvents(query: BSONDocument, broadcastClosedAndRejected: Boolean): Future[Boolean] = {
+    Logger(this.getClass).trace("findSendAndDeleteStickleEvents")
     var empty = true
     var eventMap = Map[(String, String), StashedStickleStates]()
     fstickleCollection flatMap { coll =>
@@ -146,7 +146,7 @@ class UserActor(phoneNumber: String, displayName: String)(implicit ws: WSClient)
       case StashedResponse(response) if currentEventState == open =>
         Logger(this.getClass).trace("prev=StashedResponse, currentEvent == open")
         outgoingMessageActor ! StickleState(None, currentStickleEvent.originator, currentStickleEvent.originatorDisplayName,
-          currentStickleEvent.recipient, response.createdDate, response.state, None, None)
+          currentStickleEvent.recipient, response.createdDate, response.state, currentStickleEvent.deliveryState, currentStickleEvent.deliveryTime)
         newerEvents + ((currentStickleEvent.originator -> currentStickleEvent.recipient) -> DeleteAnythingOlder())
 
       case DeleteAnythingOlder() =>

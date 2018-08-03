@@ -1,1 +1,0 @@
-bin\activator.bat -jvm-debug 9999 -Dtwilio.ACCOUNT_SID=AC0d7044cb39872499cc07c961ceb39954 -Dtwilio.AUTH_TOKEN=b2fae3a17deda52dc28d92bdea971389 -Dtwilio.FROM=+447400042932 "run 9001"

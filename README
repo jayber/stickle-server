@@ -12,4 +12,4 @@ unzip sticklexxx
 
 cd sticklexxx
 
-sudo bin/stickle-server -Dtwilio.ACCOUNT_SID=AC0d7044cb39872499cc07c961ceb39954 -Dtwilio.AUTH_TOKEN=b2fae3a17deda52dc28d92bdea971389 -Dtwilio.FROM=+447400042932 -Dhttp.port=80 -J-Xmx750m -J-Xms750m 2> /dev/null &
+sudo bin/stickle-server -Dtwilio.ACCOUNT_SID=XXXXXXXXXXXXXXXX -Dtwilio.AUTH_TOKEN=XXXXXXXXXXXXXX -Dtwilio.FROM=+447400042932 -Dhttp.port=80 -J-Xmx750m -J-Xms750m 2> /dev/null &
